@@ -1,0 +1,51 @@
+name: Checkin
+
+on:
+  schedule:
+    - cron: 0 8 * * *
+  watch:
+    types: [started]
+
+jobs:
+  rrys:
+    name: 人人影视字幕组
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+    - name: Checkin
+      env:
+        USERNAME: ${{ secrets.RRYS_USERNAME }}
+        PASSWD: ${{ secrets.RRYS_PASSWD }}
+      run: |
+        python zimuzu.py && python zimuzuhodong.py
+
+  ssrpanel:
+    name: SSRPanel
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+    - name: Checkin
+      env:
+        URL: ${{ secrets.SSRPANEL_URL }}
+        USERURL: ${{ secrets.SSRPANEL_USERURL }}
+        CHECKINURL: ${{ secrets.SSRPANEL_CHECKINURL }}
+        EMAIL: ${{ secrets.SSRPANEL_EMAIL }}
+        PASSWD: ${{ secrets.SSRPANEL_PASSWD }}
+      run: |
+        python ssrpanel.py
