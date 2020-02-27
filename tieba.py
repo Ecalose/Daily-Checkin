@@ -1,93 +1,130 @@
-# -*- coding: utf-8 -*-
-#   贴吧签到脚本
-import re
-import time
+#coding:utf-8
 import requests
-import urllib
-import os
+from urllib import parse
+from bs4 import BeautifulSoup
+from os import path
+import json
+import sys
+import configparser
+import hashlib
+from multiprocessing.dummy import Pool as ThreadPool
 
+class Tieba(object):
+    def __init__(self,BDUSS):
+        self.BDUSS = BDUSS
+        self.headers = {'Cookie':'BDUSS='+self.BDUSS}
+        if path.exists('data.ini') == False:
+            print('首次执行，正在抓取喜欢的贴吧...')
+            self.saveList()
 
-class Baidu():
-    def baidu(self, cookies):
-        self.base_url = "http://www.baidu.com"
-        self.session = requests.session()
-        self.session.cookies.update(cookies)
-        self.session.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:51.0) Gecko/20100101 Firefox/51.0"
-        self.username = self.get_username()
-        print 'Username is :', self.username
-        if self.username:
-            self.Tiebas = self.get_Tiebas()
-            for name in self.Tiebas:
-                if self.sign_wap(urllib.quote(name.encode('utf-8'))): time.sleep(0.5)
-        return True
-
-    def get_username(self):
-        '''
-        获取用户名
-        :return:
-        '''
-        res = self.session.get(self.base_url)
-        # 测试是否登录成功
-        print 'Login in True' if re.search("'login':'1'", res.text) else 'Login in False'
-
-        username = re.search("=user-name>(.+?)<", res.text)
-        return username.group(1) if username else None
-
-    def get_Tiebas(self):
-        '''
-        获取贴吧列表
-        :return:
-        '''
-        try:
-            res = self.session.get("https://tieba.baidu.com/mo/")
-            likes_url = "https://tieba.baidu.com" + \
-                        re.search('"([^"]+tab=favorite)"', res.text).group(1).replace("&amp;", "&")
-            res = self.session.get(likes_url)
-            Tiebas = re.findall('kw.+?">(.+?)<', res.text)
-            return Tiebas
-        except:
-            return False
-
-    def sign_wap(self, tieba_name):
-        '''
-        贴吧签到
-        :param tieba_name:
-        :return:True(执行签到) False(已经签到)
-        '''
-
-        res = self.session.get("https://tieba.baidu.com/mo/m?kw=" + tieba_name)
-
-        if u"已签到" in res.text:
-            print "已经签到：", urllib.unquote(tieba_name)
-            return False
+    def getRes(self,url,headers=None):
+        r = requests.get(url,headers=headers)
+        if r.status_code == 200:
+            try:
+                j = json.loads(r.text)
+                return j
+            except ValueError as e:
+                return r.text
         else:
-            s = '签到'.decode('utf-8')
-            match = re.search('(/mo/q[^<]+?)">' + s, res.text)
-            if match:
-                sign_url = "https://tieba.baidu.com" + match.group(1)
-                sign_url = sign_url.replace("&amp;", "&")
-                res = self.session.get(sign_url)
-                print "成功签到： " + urllib.unquote(
-                    tieba_name) if u"已签到" in res.text else "签到失败： " + urllib.unquote(tieba_name)
-            return True
+            raise Exception("HTTP Error:", r.status_code)
+    def postRes(self,url,headers=None,data=None):
+        r = requests.post(url,headers=headers,data=data,timeout=10)
+        if r.status_code == 200:
+            try:
+                j = json.loads(r.text)
+                return j
+            except:
+                return r.text
+        else:
+            raise Exception("POST Error:",r.status_code)
+    def encodeData(self,data):
+        '''主要是计算sign的值'''
+        SIGN_KEY = 'tiebaclient!!!'
+        s = ''
+        keys = data.keys()
+        #print(sorted(keys))
+        for i in sorted(keys):
+            s+=i+'='+data[i]
+        sign = hashlib.md5((s+SIGN_KEY).encode('utf-8')).hexdigest().upper()
+        #print(sign)
+        data.update({'sign':str(sign)})
+        return data
+#签到基本函数
+    def sign(self,kw,fid=None):
+        url = 'http://c.tieba.baidu.com/c/c/forum/sign'
+        if fid == None:
+            fid=self.getfid(kw)
+        data = {
+            'BDUSS':self.BDUSS,
+            'fid':fid,
+            'kw':kw,
+            'tbs':self.gettbs()#'12d4181f7a12804b1471269978'
+        }
+        d = self.encodeData(data)
+        d = parse.urlencode(d)
+        d = d.encode('utf-8')
+        res = self.postRes(url,self.headers,d)
+        if res["error_code"] == '0':
+            msg = '√'
+        elif res["error_code"] == '160002':
+            msg = '已经签到过了'
+        else:
+            msg = '×'
+        print("签到",kw,"吧\t",msg)
+        return res
+
+    def multiSign(self):
+        like = self.getLike()
+        print('共需签到%d个贴吧'% len(like))
+        pool = ThreadPool(4)
+        result = pool.map(self.sign,like)
+        pool.close()
+        pool.join()
+    def getfid_web(self,kw):
+        fid_url = 'http://tieba.baidu.com/f/commit/share/fnameShareApi?ie=utf-8&fname='+parse.quote(kw)
+        fid = self.getRes(fid_url)['data']['fid']
+        return str(fid)
+
+    def getfid(self,kw):
+        config = configparser.ConfigParser()
+        config.read('data.ini',encoding='utf-8')
+        try:
+            fid = config.get('fid',kw)
+        except:
+            fid = self.getfid_web(kw)
+        return fid
+
+    def gettbs(self):
+        url = 'http://tieba.baidu.com/dc/common/tbs'
+        tbs = self.getRes(url,self.headers)
+        return str(tbs['tbs'])
 
 
-def main():
-    '''
-    用户列表
-    '''
-    BAIDUID1 = os.getenv('BAIDUID1')
-    BDUSS1 = os.getenv('BDUSS1')
-    cookies = [
-        {
-            'BAIDUID': 'BAIDUID1',
-            'BDUSS': 'BDUSS1'
-        },
-    ]
+    def saveList(self):
+        print('正在抓取喜欢的贴吧...')
+        url = 'http://tieba.baidu.com/mo/q---B8D06B9EB00241F919F47789D4FD3103%3AFG%3D1--1-1-0--2--wapp_1385540291997_626/m?tn=bdFBW&tab=favorite'
+        text = self.getRes(url,headers=self.headers)
+        soup = BeautifulSoup(text,"html.parser")
+        a = soup.select('div.d a')
+        config = configparser.ConfigParser()
+        config['fid'] = {}
+        length=len(a)
+        for i in range(length):
+            sys.stdout.write('收集数据：'+str(int(i*100/length))+'%\r')
+            sys.stdout.flush()
+            config['fid'][a[i].get_text()]=self.getfid(a[i].get_text())
+        with open('data.ini','w',encoding='utf-8') as configfile:
+            config.write(configfile)
+            print('写入文件成功！')
 
-    for i in cookies:
-        Baidu().baidu(i)
+    def getLike(self):
+        config = configparser.ConfigParser()
+        config.read('data.ini',encoding='utf-8')
+        like = config.options('fid')
+        return like
 
 
-if __name__ == '__main__':
-    main()
+BDUSS = os.getenv('BDUSS')
+t = Tieba(BDUSS)
+
+t.multiSign()
