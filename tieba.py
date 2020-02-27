@@ -3,6 +3,7 @@ import requests
 from urllib import parse
 from bs4 import BeautifulSoup
 from os import path
+import os
 import json
 import sys
 import configparser
