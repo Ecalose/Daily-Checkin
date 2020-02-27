@@ -69,3 +69,23 @@ jobs:
         BDUSS: ${{ secrets.TIEBA_BDUSS }}
       run: |
         python tieba.py
+
+  hostloc:
+    name: Hostloc
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Checkin
+      env:
+        hostloc_username_1: ${{ secrets.HOSTLOC_USERNAME }}
+        hostloc_password_1: ${{ secrets.HOSTLOC_PASSWD }}
+      run: |
+        cd hostloc && python run.py
