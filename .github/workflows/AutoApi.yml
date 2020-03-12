@@ -29,7 +29,6 @@ jobs:
         CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         FERNET_KEY: ${{ secrets.FERNET_KEY }}
       run: |
-        echo `date +"%Y-%m-%d %H:%M:%S"` begin
         python ./AutoApi/autoapi.py     
     - name: commit
       run: |
