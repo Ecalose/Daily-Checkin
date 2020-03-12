@@ -32,7 +32,7 @@ def gettoken(refresh_token):
     refresh_token = f.encrypt(refresh_token.encode())
     access_token = jsontxt['access_token']
     with open(path, 'w+') as f:
-        f.write(refresh_token)
+        f.write(refresh_token.decode())
     return access_token
 
 def main():
@@ -40,7 +40,7 @@ def main():
     refresh_token = fo.read()
     fo.close()
     f = Fernet(crypto_key)
-    refresh_token = f.decrypt(refresh_token)
+    refresh_token = f.decrypt(refresh_token.encode())
     refresh_token = refresh_token.decode()
     global num1
     localtime = time.asctime( time.localtime(time.time()) )
