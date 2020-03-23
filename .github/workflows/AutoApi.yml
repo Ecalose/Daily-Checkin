@@ -31,12 +31,10 @@ jobs:
         FERNET_KEY: ${{ secrets.FERNET_KEY }}
       run: |
         python ./AutoApi/autoapi.py     
-    - name: commit
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add .
-        git commit -m "update new refresh_token" -a
+    - uses: autosuite/autocommit@master
+      with:
+        commit-message: Update new refresh_token.
+        add-options: -A
     - name: Push changes
       uses: ad-m/github-push-action@master
       with:
