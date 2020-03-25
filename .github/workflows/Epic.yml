@@ -21,7 +21,7 @@ jobs:
       run: |
         git clone https://github.com/Revadike/epicgames-freebies-claimer.git epic
         cd epic && npm install   
-    - uses: Get free games
+    - name: Get free games
       env:
         USERNAME: ${{ secrets.EPIC_USERNAME }}
         PASSWORD: ${{ secrets.EPIC_PASSWORD }}
